@@ -2,3 +2,4 @@
 src/vendor/
 .env
 certs/*
+!certs
