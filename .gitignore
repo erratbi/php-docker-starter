@@ -3,3 +3,4 @@ src/vendor/
 .env
 certs/*
 !certs/
+!certs/.gitkeep
