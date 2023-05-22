@@ -20,20 +20,29 @@ To use this starter template, follow the steps below:
 
 1. Clone this repository to your local machine:
 
-   `git clone https://github.com/erratbi/php-docker-starter`
+
+```
+   git clone https://github.com/erratbi/php-docker-starter
+```
 
 2. Change to the cloned repository's directory:
 
-   `cd php-docker-starter`
+```
+   cd php-docker-starter
+```
 
 3. Rename env file and define your database credentials and app domaine name:
 
-   `mv .env.example .env`
+```
+   mv .env.example .env
+```
 
 4. Generate SSL certificates using mkcert:
 
-   `mkcert -install`
-   `mkcert -cert-file="./certs/app-cert.pem" -key-file="./certs/app-key.pem" example.localhost *.example.localhost`
+```
+    mkcert -install
+    mkcert -cert-file="./certs/app-cert.pem" -key-file="./certs/app-key.pem" example.localhost *.example.localhost
+ ```
 
    The above command will generate a self-signed SSL certificate for the `example.localhost` domain and any subdomains
    like `phpmyadmin.example.localhost` which will give you access to phpMyAdmin. the certificates and
@@ -41,7 +50,9 @@ To use this starter template, follow the steps below:
 
 5. Start the Docker containers:
 
-`docker-compose up -d`
+```
+   docker-compose up -d
+```
 
 This command will start all the required containers defined in the `docker-compose.yml` file.
 
