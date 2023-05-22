@@ -1,0 +1,10 @@
+http:
+  routers:
+    traefik:
+      rule: "Host(`traefik.docker.localhost`)"
+      service: "api@internal"
+
+tls:
+  certificates:
+    - certFile: "/etc/certs/app-cert.pem"
+      keyFile: "/etc/certs/app-key.pem"

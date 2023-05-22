@@ -1,0 +1,158 @@
+version: '3.7'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    volumes:
+      - ./src:/var/www/vhosts/site:cached
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./certs:/etc/nginx/ssl
+    working_dir: /var/www/vhosts/
+    depends_on:
+      - app
+      - traefik
+    networks:
+      - app_network
+      - proxy
+    ports:
+      - '9008:9008'
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'traefik.http.routers.nginx-https.tls=true'
+      - 'traefik.http.routers.nginx-https.rule=Host(`${APP_DOMAINE}`)'
+      - 'traefik.http.routers.nginx-https.priority=1'
+      - 'traefik.http.routers.nginx-http.rule=Host(`${APP_DOMAINE}`)'
+      - 'traefik.http.routers.nginx-http.entrypoints=http'
+      - 'traefik.http.routers.nginx-http.middlewares=redirect-to-https'
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/static.yml:/etc/traefik/traefik.yml:ro
+      - ./config/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./certs:/etc/certs:ro
+    networks:
+      - proxy
+    # labels:
+    #   - 'traefik.enable=true'
+    #   - 'traefik.docker.network=proxy'
+    #   - 'traefik.http.routers.traefik-secure.entrypoints=websecure'
+    #   - 'traefik.http.routers.traefik-secure.rule=Host(`traefik.${APP_DOMAINE}`)'
+    #   - 'traefik.http.routers.traefik-secure.middlewares=user-auth@file'
+    #   - 'traefik.http.routers.traefik-secure.service=api@internal'
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: app
+    restart: unless-stopped
+    volumes:
+      - ./src:/var/www/vhosts/site:cached
+    networks:
+      - app_network
+      - proxy
+    environment:
+      UPLOAD_LIMIT: 100M
+      MAX_EXECUTION_TIME: 3600
+      PHP_MEMORY_LIMIT: 512M
+      COMPOSER_MEMORY_LIMIT: -1
+    user: 1000:1000
+    working_dir: /var/www/vhosts/site
+    ports:
+      - '9003:9003'
+    depends_on:
+      - mysql
+      - redis
+
+  mysql:
+    image: mysql/mysql-server:8.0
+    container_name: mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", 'mysqladmin ping']
+      interval: 10s
+      timeout: 2s
+      retries: 10
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_TCP_PORT: 3306
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysqldb:/var/lib/mysql
+    ports:
+      - '${FORWARD_DB_PORT:-4406}:3306'
+    networks:
+      - app_network
+      - proxy
+  phpmyadmin:
+    depends_on:
+      traefik:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: root
+      UPLOAD_LIMIT: 100M
+      MAX_EXECUTION_TIME: 3600
+
+    ports:
+      - '8888:80'
+    networks:
+      - app_network
+      - proxy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'traefik.http.routers.phpmyadmin-https.tls=true'
+      - 'traefik.http.routers.phpmyadmin-https.rule=Host(`phpmyadmin.${APP_DOMAINE}`)'
+      - 'traefik.http.routers.phpmyadmin-https.priority=1'
+      - 'traefik.http.routers.phpmyadmin-http.rule=Host(`phpmyadmin.${APP_DOMAINE}`)'
+      - 'traefik.http.routers.phpmyadmin-http.entrypoints=http'
+      - 'traefik.http.routers.phpmyadmin-http.middlewares=redirect-to-https'
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    networks:
+      - app_network
+    ports:
+      - '6379:6379'
+networks:
+  app_network:
+    driver: bridge
+  proxy:
+    external: true
+
+volumes:
+  mysqldb:
+    driver: local
+  redisdata:
+    driver: local
